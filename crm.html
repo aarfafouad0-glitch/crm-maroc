@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>CRM Clients Maroc</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body{font-family:Segoe UI,Arial;margin:0;background:#f2f6ff;color:#333}
+  header{background:#0050a5;color:#fff;padding:15px 20px;font-size:1.4em;font-weight:600}
+  .container{padding:20px;max-width:1100px;margin:auto}
+  .card{background:#fff;border-radius:8px;padding:15px;margin-bottom:15px;box-shadow:0 2px 6px rgba(0,0,0,.1)}
+  h2{margin-top:0}
+  input,select,button{padding:8px;margin:4px 2px;border:1px solid #bbb;border-radius:4px}
+  button{background:#0050a5;color:#fff;cursor:pointer;border:none}
+  button:hover{opacity:.9}
+  table{width:100%;border-collapse:collapse;margin-top:10px}
+  th,td{padding:8px;text-align:left}
+  th{background:#eef}
+  tr:nth-child(even){background:#fafbfc}
+  .del{background:#d63031;color:#fff;border:none;padding:6px 10px;border-radius:4px;cursor:pointer}
+  #kpi{display:flex;gap:15px;flex-wrap:wrap;margin-bottom:20px}
+  #kpi div{background:#0050a5;color:#fff;padding:12px 18px;border-radius:6px;font-size:1.1em}
+  canvas{max-width:300px;margin:auto;display:block}
+</style>
+</head>
+<body>
+<header>CRM Clients Maroc</header>
+<div class="container">
+  <div id="kpi">
+    <div>Total : <span id="tot">0</span></div>
+    <div>À contacter : <span id="ac">0</span></div>
+    <div>Fidèles : <span id="fid">0</span></div>
+  </div>
+
+  <div class="card">
+    <h2>Nouveau client</h2>
+    <input id="nom" placeholder="Nom entreprise">
+    <input id="adr" placeholder="Adresse">
+    <input id="tel" placeholder="Téléphone">
+    <input id="ville" placeholder="Ville">
+    <input id="mail" placeholder="Email">
+    <select id="statut">
+      <option>À contacter</option>
+      <option>En cours</option>
+      <option>Fidèle</option>
+      <option>Perdu</option>
+    </select>
+    <button onclick="ajouter()">Ajouter</button>
+  </div>
+
+  <div class="card">
+    <h2>Recherche / Filtre</h2>
+    <input id="search" placeholder="Nom ou ville" oninput="filtre()">
+    <select id="filtreStatut" onchange="filtre()">
+      <option value="">Tous statuts</option>
+      <option>À contacter</option>
+      <option>En cours</option>
+      <option>Fidèle</option>
+      <option>Perdu</option>
+    </select>
+  </div>
+
+  <div class="card">
+    <h2>Liste clients</h2>
+    <table id="table">
+      <thead><tr><th>Nom</th><th>Adresse</th><th>Téléphone</th><th>Ville</th><th>Email</th><th>Statut</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Répartition par statut</h2>
+    <canvas id="cam" width="300" height="300"></canvas>
+  </div>
+</div>
+
+<script>
+let clients = JSON.parse(localStorage.getItem('crmClients')) || [];
+
+function ajouter(){
+  const cl = {
+    nom : document.getElementById('nom').value,
+    adr : document.getElementById('adr').value,
+    tel : document.getElementById('tel').value,
+    ville: document.getElementById('ville').value,
+    mail: document.getElementById('mail').value,
+    statut: document.getElementById('statut').value
+  };
+  if(!cl.nom){alert("Nom obligatoire");return;}
+  clients.push(cl); sauvegarde(); resetForm(); affiche();
+}
+function resetForm(){document.querySelectorAll('#nom,#adr,#tel,#ville,#mail').forEach(e=>e.value='');}
+function sauvegarde(){localStorage.setItem('crmClients', JSON.stringify(clients));}
+function suppr(i){clients.splice(i,1); sauvegarde(); affiche();}
+
+function affiche(){
+  const tbody = document.querySelector('#table tbody');
+  tbody.innerHTML = '';
+  let f = filtreActif();
+  f.forEach((c,i)=>{
+    let r = tbody.insertRow();
+    r.insertCell(0).textContent = c.nom;
+    r.insertCell(1).textContent = c.adr;
+    r.insertCell(2).textContent = c.tel;
+    r.insertCell(3).textContent = c.ville;
+    r.insertCell(4).textContent = c.mail;
+    r.insertCell(5).textContent = c.statut;
+    let b = r.insertCell(6);
+    b.innerHTML = `<button class="del" onclick="suppr(${clients.indexOf(c)})">X</button>`;
+  });
+  kpi();
+  camembert();
+}
+function filtreActif(){
+  let s = document.getElementById('search').value.toLowerCase();
+  let st = document.getElementById('filtreStatut').value;
+  return clients.filter(c=>
+    (c.nom.toLowerCase().includes(s) || c.ville.toLowerCase().includes(s)) &&
+    (st==="" || c.statut===st)
+  );
+}
+function filtre(){affiche();}
+
+function kpi(){
+  document.getElementById('tot').textContent = clients.length;
+  document.getElementById('ac').textContent = clients.filter(c=>c.statut==="À contacter").length;
+  document.getElementById('fid').textContent = clients.filter(c=>c.statut==="Fidèle").length;
+}
+function camembert(){
+  const ctx = document.getElementById('cam').getContext('2d');
+  const data = clients.reduce((acc,c)=>{acc[c.statut]=(acc[c.statut]||0)+1;return acc},{});
+  const labels = Object.keys(data);
+  const values = Object.values(data);
+  const colors = ['#0050a5','#00a5d9','#f39c12','#d63031'];
+  drawPie(ctx,labels,values,colors);
+}
+function drawPie(ctx,labels,values,colors){
+  const total = values.reduce((a,b)=>a+b,0);
+  let currentAngle = -Math.PI/2;
+  const centerX = ctx.canvas.width/2;
+  const centerY = ctx.canvas.height/2;
+  const radius = 100;
+  labels.forEach((label,i)=>{
+    const sliceAngle = (values[i]/total)*2*Math.PI;
+    // dessin
+    ctx.beginPath();
+    ctx.arc(centerX,centerY,radius,currentAngle,currentAngle+sliceAngle);
+    ctx.lineTo(centerX,centerY);
+    ctx.fillStyle = colors[i%colors.length];
+    ctx.fill();
+    // légende
+    const labelX = centerX + Math.cos(currentAngle+sliceAngle/2)*(radius+20);
+    const labelY = centerY + Math.sin(currentAngle+sliceAngle/2)*(radius+20);
+    ctx.fillStyle = '#333';
+    ctx.font='12px Segoe UI';
+    ctx.fillText(label+' '+values[i],labelX,labelY);
+    currentAngle += sliceAngle;
+  });
+}
+
+// initial
+affiche();
+</script>
+</body>
+</html>
